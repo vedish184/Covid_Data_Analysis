@@ -233,3 +233,81 @@ From coviddeaths
 Where continent is not null 
 Group by continent
 order by TotalDeathCount desc
+
+
+-- Total population vs vaccination
+-- joining both tables 
+select cd.continent,cd.location,cd.date,cd.population,cv.new_vaccinations
+from coviddeaths cd join CovidVaccinations cv on 
+cd.location=cv.location and cd.date=cv.date
+where cd.continent is not null 
+order by 2,3;
+
+
+--  SAME with adding partition by
+select cd.continent,cd.location,cd.date,cd.population,cv.new_vaccinations,
+sum(cv.new_vaccinations) over(partition by cd.location order by cd.location,cd.date) as TotalPeopleVaccination
+from coviddeaths cd join CovidVaccinations cv on 
+cd.location=cv.location and cd.date=cv.date
+where cd.continent is not null 
+order by 2,3;
+
+
+-- How many people in that country are vaccinated
+select cd.continent,cd.location,cd.date,cd.population,cv.new_vaccinations,
+sum(cv.new_vaccinations) over(partition by cd.location order by cd.location,cd.date) as TotalPeopleVaccination
+-- (TotalPeopleVaccination/population)       ----> we cannot use column that is just created by us to use it we use CTE
+from coviddeaths cd join CovidVaccinations cv on 
+cd.location=cv.location and cd.date=cv.date
+where cd.continent is not null 
+order by 2,3;
+
+
+-- Using CTE to perform Calculation on Partition By in previous query
+with popvacc(Continent, Location, Date, Population, New_Vaccinations, TotalPeopleVaccination)
+as(
+select cd.continent,cd.location,cd.date,cd.population,cv.new_vaccinations,
+sum(cv.new_vaccinations) over(partition by cd.location order by cd.location,cd.date) as TotalPeopleVaccination     
+from coviddeaths cd join CovidVaccinations cv on 
+cd.location=cv.location and cd.date=cv.date
+where cd.continent is not null 
+)
+select *,(TotalPeopleVaccination/population)*100 from popvacc;
+
+
+
+
+-- Creating Temp table
+-- DROP Table if exists PopulationVaccinatedPercentage
+Create Table PopulationVaccinatedPercentage
+(
+Continent nvarchar(255),
+Location nvarchar(255),
+Date datetime,
+Population numeric,
+New_vaccinations numeric,
+TotalPeopleVaccination numeric
+)
+
+insert INTO PopulationVaccinatedPercentage
+select cd.continent,cd.location,cd.date,cd.population,cv.new_vaccinations,
+sum(cv.new_vaccinations) over(partition by cd.location order by cd.location,cd.date) as TotalPeopleVaccination     
+from coviddeaths cd join CovidVaccinations cv on 
+cd.location=cv.location and cd.date=cv.date
+where cd.continent is not null 
+
+select *,(TotalPeopleVaccination/population)*100 as Percentage_Of_Vaccinated_People from PopulationVaccinatedPercentage;
+
+
+
+-- 
+-- Creating a View
+
+create View PercentPopVacc as 
+select cd.continent,cd.location,cd.date,cd.population,cv.new_vaccinations,
+sum(cv.new_vaccinations) over(partition by cd.location order by cd.location,cd.date) as TotalPeopleVaccination     
+from coviddeaths cd join CovidVaccinations cv on 
+cd.location=cv.location and cd.date=cv.date
+where cd.continent is not null ;
+
+select * from PercentPopVacc;
